@@ -298,7 +298,7 @@ function task_done_hook(t::Task)
 
     if err && !handled
         if isa(result,InterruptException) && isdefined(Base,:active_repl_backend) &&
-            active_repl_backend.backend_task.state == :runnable && isempty(Workqueue) &&
+            active_repl_backend.backend_task.state == :runnable && list_isempty(Workqueue_head) &&
             active_repl_backend.in_eval
             throwto(active_repl_backend.backend_task, result) # this terminates the task
         end
@@ -312,7 +312,7 @@ function task_done_hook(t::Task)
         # the exception to the REPL task since the current task is done.
         # issue #19467
         if isa(e,InterruptException) && isdefined(Base,:active_repl_backend) &&
-            active_repl_backend.backend_task.state == :runnable && isempty(Workqueue) &&
+            active_repl_backend.backend_task.state == :runnable && list_isempty(Workqueue_head) &&
             active_repl_backend.in_eval
             throwto(active_repl_backend.backend_task, e)
         else

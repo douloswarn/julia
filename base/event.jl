@@ -163,12 +163,80 @@ const Condition = GenericCondition{AlwaysLockedST}
 
 ## scheduler and work queue
 
-global const Workqueue = Task[]
+#struct InvasiveDoubleLinkedList{T}
+#    head::Union{T, Nothing}
+#end
+# global const Workqueue = InvasiveDoubleLinkedList{Task}
+global const Workqueue_head = Ref{Union{Task, Nothing}}(nothing)
+function list_isempty(Q::Ref{Union{T, Nothing}}) where T
+    return Q[] === nothing
+end
+function list_length(Q::Ref{Union{T, Nothing}}) where T
+    i = 0
+    H = Q[]
+    while H !== nothing
+        i += 1
+        H = H.next
+    end
+    return i
+end
+function list_push!(Q::Ref{Union{T, Nothing}}, V::T) where T
+    H = Q[]
+    if H === nothing
+        Q[] = V
+    else
+        H_next = H.next
+        while H_next !== nothing
+            H = H_next
+            H_next = H.next
+        end
+        H.next = V
+    end
+    return Q
+end
+function list_pushfirst!(Q::Ref{Union{T, Nothing}}, V::T) where T
+    H = Q[]
+    if H !== nothing
+        V_next = V.next
+        while V_next !== nothing
+            V = V_next
+        end
+        V.next = H
+    end
+    Q[] = V
+    return Q
+end
+function list_popfirst!(Q::Ref{Union{T, Nothing}}) where T
+    H = Q[]
+    Q[] = H.next
+    return H::Task
+end
+function list_delete!(Q::Ref{Union{T, Nothing}}, V::T) where T
+    H = Q[]
+    if H === V
+        Q[] = V.next
+        V.next = nothing
+        return Q
+    elseif H !== nothing
+        H_next = H.next
+        while H_next !== nothing
+            if H_next === V
+                H.next = V.next
+                V.next = nothing
+                return Q
+            end
+            H = H_next
+            H_next = H.next
+        end
+    end
+    throw(KeyError(V))
+end
+
 
 function enq_work(t::Task)
     t.state == :runnable || error("schedule: Task not runnable")
     ccall(:uv_stop, Cvoid, (Ptr{Cvoid},), eventloop())
-    push!(Workqueue, t)
+    list_push!(Workqueue_head, t)
     t.state = :queued
     return t
 end
@@ -218,11 +286,11 @@ end
 # fast version of `schedule(t, arg); wait()`
 function schedule_and_wait(t::Task, arg=nothing)
     t.state == :runnable || error("schedule: Task not runnable")
-    if isempty(Workqueue)
+    if list_isempty(Workqueue_head)
         return yieldto(t, arg)
     else
         t.result = arg
-        push!(Workqueue, t)
+        list_push!(Workqueue_head, t)
         t.state = :queued
     end
     return wait()
@@ -292,22 +360,21 @@ function ensure_rescheduled(othertask::Task)
     if ct !== othertask && othertask.state == :runnable
         # we failed to yield to othertask
         # return it to the head of the queue to be scheduled later
-        pushfirst!(Workqueue, othertask)
+        list_pushfirst!(Workqueue_head, othertask)
         othertask.state = :queued
     end
     if ct.state == :queued
         # if the current task was queued,
         # also need to return it to the runnable state
         # before throwing an error
-        i = findfirst(t->t===ct, Workqueue)
-        i === nothing || deleteat!(Workqueue, i)
+        list_delete!(Workqueue_head, ct)
         ct.state = :runnable
     end
     nothing
 end
 
 @noinline function poptask()
-    t = popfirst!(Workqueue)
+    t = list_popfirst!(Workqueue_head)
     if t.state != :queued
         # assume this somehow got queued twice,
         # probably broken now, but try discarding this switch and keep going
@@ -323,9 +390,9 @@ end
 
 function wait()
     while true
-        if isempty(Workqueue)
+        if list_isempty(Workqueue_head)
             c = process_events(true)
-            if c == 0 && eventloop() != C_NULL && isempty(Workqueue)
+            if c == 0 && eventloop() != C_NULL && list_isempty(Workqueue_head)
                 # if there are no active handles and no runnable tasks, just
                 # wait for signals.
                 pause()
