@@ -906,6 +906,7 @@ void jl_init_root_task(void *stack_lo, void *stack_hi)
         ssize += ROOT_TASK_STACK_ADJUSTMENT; // sizeof stack is known exactly, but not where we are in that stack
     }
 #endif
+    ptls->current_task->stkbuf = stack;
     ptls->current_task->bufsz = ssize;
     ptls->current_task->started = 1;
     ptls->current_task->next = jl_nothing;

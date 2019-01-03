@@ -282,9 +282,9 @@ end
     ct = current_task()
     testobject = "testobject"
     # note: there is a low probability this test could fail, due to receiving network traffic simultaneously
-    @test Base.list_length(Base.Workqueue_head) == 1
+    @test length(Base.Workqueue) == 1
     @test Base.schedule_and_wait(ct, 8) == 8
-    @test Base.list_isempty(Base.Workqueue_head)
+    @test isempty(Base.Workqueue)
     @test Base.schedule_and_wait(ct, testobject) === testobject
 end
 
