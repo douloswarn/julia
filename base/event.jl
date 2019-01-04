@@ -163,8 +163,8 @@ const Condition = GenericCondition{AlwaysLockedST}
 
 ## scheduler and work queue
 
-#global const Workqueue = InvasiveDoubleLinkedList{Task}
-global const Workqueue = Task[]
+global const Workqueue = InvasiveLinkedList{Task}()
+#global const Workqueue = Task[]
 
 function enq_work(t::Task)
     t.state == :runnable || error("schedule: Task not runnable")
