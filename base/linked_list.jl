@@ -1,17 +1,19 @@
 # This file is a part of Julia. License is MIT: https://julialang.org/license
 
 mutable struct InvasiveLinkedList{T}
-    # Invasive list requires that T have a field `.next >: U{T, Nothing}` and `.owner >: ILL{T}`
+    # Invasive list requires that T have a field `.next >: U{T, Nothing}` and `.queue >: U{ILL{T}, Nothing}`
     head::Union{T, Nothing}
     tail::Union{T, Nothing}
     InvasiveLinkedList{T}() where {T} = new{T}(nothing, nothing)
 end
 
 #const list_append!! = append!
-#const list_delete! = delete!
+#const list_deletefirst! = delete!
 
-iterate(q::InvasiveLinkedList) = (h = q.head; h === nothing ? h : (h, h))
-iterate(q::InvasiveLinkedList{T}, v::T) where {T} = (h = v.next; h === nothing ? h : (h, h))
+eltype(::Type{<:InvasiveLinkedList{T}}) where {T} = @isdefined(T) ? T : Any
+
+iterate(q::InvasiveLinkedList) = (h = q.head; h === nothing ? nothing : (h, h))
+iterate(q::InvasiveLinkedList{T}, v::T) where {T} = (h = v.next; h === nothing ? nothing : (h, h))
 
 isempty(q::InvasiveLinkedList) = (q.head === nothing)
 
@@ -29,7 +31,7 @@ function list_append!!(q::InvasiveLinkedList{T}, q2::InvasiveLinkedList{T}) wher
     q === q2 && error("can't append list to itself")
     head2 = q2.head
     if head2 !== nothing
-        tail2 = q2.tail::Task
+        tail2 = q2.tail::T
         q2.head = nothing
         q2.tail = nothing
         tail = q.tail
@@ -73,26 +75,26 @@ function pushfirst!(q::InvasiveLinkedList{T}, val::T) where T
     return q
 end
 
-function popfirst!(q::InvasiveLinkedList)
-    val = q.head::Task
-    list_delete!(q, val) # cheap
+function pop!(q::InvasiveLinkedList{T}) where {T}
+    val = q.tail::T
+    list_deletefirst!(q, val) # expensive!
     return val
 end
 
-function pop!(q::InvasiveLinkedList)
-    val = q.tail::Task
-    list_delete!(q, val) # expensive!
+function popfirst!(q::InvasiveLinkedList{T}) where {T}
+    val = q.head::T
+    list_deletefirst!(q, val) # cheap
     return val
 end
 
-function list_delete!(q::InvasiveLinkedList{T}, val::T) where T
+function list_deletefirst!(q::InvasiveLinkedList{T}, val::T) where T
     val.queue === q || return
-    head = q.head::Task
+    head = q.head::T
     if head === val
-        if q.tail::Task === val
+        if q.tail::T === val
             q.head = q.tail = nothing
         else
-            q.head = val.next::Task
+            q.head = val.next::T
         end
     else
         head_next = head.next
@@ -100,11 +102,11 @@ function list_delete!(q::InvasiveLinkedList{T}, val::T) where T
             head = head_next
             head_next = head.next
         end
-        if q.tail::Task === val
+        if q.tail::T === val
             head.next = nothing
             q.tail = head
         else
-            head.next = val.next::Task
+            head.next = val.next::T
         end
     end
     val.next = nothing
@@ -112,8 +114,44 @@ function list_delete!(q::InvasiveLinkedList{T}, val::T) where T
     return q
 end
 
-function list_delete!(q::Array{T}, val::T) where T
-    i = findfirst(equalto(val), q)
-    i === nothing || deleteat!(q, i)
+#function list_deletefirst!(q::Array{T}, val::T) where T
+#    i = findfirst(isequal(val), q)
+#    i === nothing || deleteat!(q, i)
+#    return q
+#end
+
+
+mutable struct LinkedListItem{T}
+    # Adapter class to use any `T` in a LinkedList
+    next::Union{LinkedListItem{T}, Nothing}
+    queue::Union{InvasiveLinkedList{LinkedListItem{T}}, Nothing}
+    value::T
+    LinkedListItem{T}(value) where {T} = new{T}(nothing, nothing, convert(T, value))
+    LinkedListItem{T}(value::T) where {T} = new{T}(nothing, nothing, value)
+end
+const LinkedList{T} = InvasiveLinkedList{LinkedListItem{T}}
+
+# delegate methods, as needed
+eltype(::Type{<:LinkedList{T}}) where {T} = @isdefined(T) ? T : Any
+iterate(q::LinkedList) = (h = q.head; h === nothing ? nothing : (h.value, h))
+iterate(q::InvasiveLinkedList{LLT}, v::LLT) where {LLT<:LinkedListItem} = (h = v.next; h === nothing ? nothing : (h.value, h))
+push!(q::LinkedList{T}, val::T) where {T} = push!(q, LinkedListItem{T}(val))
+pushfirst!(q::LinkedList{T}, val::T) where {T} = pushfirst!(q, LinkedListItem{T}(val))
+#push!(q::LinkedList{T}, val) where {T} = push!(q, LinkedListItem{T}(val))
+#pushfirst!(q::LinkedList{T}, val) where {T} = pushfirst!(q, LinkedListItem{T}(val))
+#push!(q::InvasiveLinkedList{T}, val::T) where {T<:LinkedListItem} = invoke(push!, Tuple{InvasiveLinkedList{T}, T}, q, val) # resolve ambiguity
+#pushfirst!(q::InvasiveLinkedList{T}, val::T) where {T<:LinkedListItem} = invoke(pushfirst!, Tuple{InvasiveLinkedList{T}, T}, q, val) # resolve ambiguity
+pop!(q::LinkedList) = invoke(pop!, Tuple{InvasiveLinkedList,}, q).value
+popfirst!(q::LinkedList) = invoke(popfirst!, Tuple{InvasiveLinkedList,}, q).value
+list_deletefirst!(q::LinkedList{T}, val::T) where {T} = invoke(list_deletefirst!, Tuple{LinkedList{T}, Any}, q, val) # resolve ambiguity
+function list_deletefirst!(q::LinkedList{T}, val) where T
+    h = q.head
+    while h !== nothing
+        if isequal(h.value, val)
+            list_deletefirst!(q, h)
+            break
+        end
+        h = h.next
+    end
     return q
 end

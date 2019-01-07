@@ -300,7 +300,7 @@ function ensure_rescheduled(othertask::Task)
         # if the current task was queued,
         # also need to return it to the runnable state
         # before throwing an error
-        list_delete!(Workqueue, ct)
+        list_deletefirst!(Workqueue, ct)
         ct.state = :runnable
     end
     nothing
