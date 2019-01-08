@@ -570,10 +570,10 @@ end
     @test collect(t) == [5, 7]
     @test Base.list_deletefirst!(t, 6) === t
     @test length(t) === 2
-    @test Base.list_deletefirst!(t, 7.0) === t
+    @test Base.list_deletefirst!(t, 7) === t
     @test length(t) === 1
     @test collect(t) == [5]
-    @test Base.list_deletefirst!(t, 0x5) === t
+    @test Base.list_deletefirst!(t, 5) === t
     @test length(t) === 0
     @test collect(t) == []
     @test isempty(t)

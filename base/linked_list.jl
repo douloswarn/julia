@@ -126,7 +126,6 @@ mutable struct LinkedListItem{T}
     next::Union{LinkedListItem{T}, Nothing}
     queue::Union{InvasiveLinkedList{LinkedListItem{T}}, Nothing}
     value::T
-    LinkedListItem{T}(value) where {T} = new{T}(nothing, nothing, convert(T, value))
     LinkedListItem{T}(value::T) where {T} = new{T}(nothing, nothing, value)
 end
 const LinkedList{T} = InvasiveLinkedList{LinkedListItem{T}}
@@ -137,14 +136,9 @@ iterate(q::LinkedList) = (h = q.head; h === nothing ? nothing : (h.value, h))
 iterate(q::InvasiveLinkedList{LLT}, v::LLT) where {LLT<:LinkedListItem} = (h = v.next; h === nothing ? nothing : (h.value, h))
 push!(q::LinkedList{T}, val::T) where {T} = push!(q, LinkedListItem{T}(val))
 pushfirst!(q::LinkedList{T}, val::T) where {T} = pushfirst!(q, LinkedListItem{T}(val))
-#push!(q::LinkedList{T}, val) where {T} = push!(q, LinkedListItem{T}(val))
-#pushfirst!(q::LinkedList{T}, val) where {T} = pushfirst!(q, LinkedListItem{T}(val))
-#push!(q::InvasiveLinkedList{T}, val::T) where {T<:LinkedListItem} = invoke(push!, Tuple{InvasiveLinkedList{T}, T}, q, val) # resolve ambiguity
-#pushfirst!(q::InvasiveLinkedList{T}, val::T) where {T<:LinkedListItem} = invoke(pushfirst!, Tuple{InvasiveLinkedList{T}, T}, q, val) # resolve ambiguity
 pop!(q::LinkedList) = invoke(pop!, Tuple{InvasiveLinkedList,}, q).value
 popfirst!(q::LinkedList) = invoke(popfirst!, Tuple{InvasiveLinkedList,}, q).value
-list_deletefirst!(q::LinkedList{T}, val::T) where {T} = invoke(list_deletefirst!, Tuple{LinkedList{T}, Any}, q, val) # resolve ambiguity
-function list_deletefirst!(q::LinkedList{T}, val) where T
+function list_deletefirst!(q::LinkedList{T}, val::T) where T
     h = q.head
     while h !== nothing
         if isequal(h.value, val)
